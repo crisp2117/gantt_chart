@@ -1,0 +1,29 @@
+Task,Section,Start,Finish,Owners,PercentComplete,Status,Priority,Notes,Milestone
+Define Project Scope,Project Definition,2026-10-01,2026-10-05,"James, Per, Maria, Walid, Akanksha, Bona",100,Complete,High,,False
+Define Research Question & Objectives,Project Definition,2026-10-01,2026-10-05,"James, Per, Maria, Walid, Akanksha, Bona",100,Complete,High,,False
+Literature Review,Project Definition,2026-10-01,2026-10-13,"James, Per, Maria, Walid, Akanksha, Bona",35,In Progress,High,,False
+Define Methodology,Project Definition,2026-10-03,2026-10-10,"James, Per, Maria, Walid, Akanksha, Bona",40,In Progress,High,,False
+Develop Proposal,Proposal,2026-10-05,2026-10-14,"James, Per, Maria, Walid, Akanksha, Bona",10,In Progress,High,,False
+Prepare Proposal Presentation,Proposal,2026-10-09,2026-10-15,"James, Per, Maria, Walid, Akanksha, Bona",0,Not Started,Medium,,True
+Identify Data Sources,Data Acquisition,2026-10-03,2026-10-10,"James, Per, Maria, Walid, Akanksha, Bona",40,In Progress,High,,False
+Acquire Primary Dataset,Data Acquisition,2026-10-05,2026-10-14,"James, Maria",25,In Progress,High,,False
+Acquire Supporting Datasets,Data Acquisition,2026-10-05,2026-10-14,"Per, Walid, Akanksha, Bona",15,In Progress,High,,False
+Clean Primary Dataset,Data Preparation,2026-10-10,2026-10-18,"James, Maria",0,Not Started,High,,False
+Clean Supporting Datasets,Data Preparation,2026-10-10,2026-10-18,"Per, Walid",0,Not Started,Medium,,False
+Integrate Data Sources,Data Preparation,2026-10-15,2026-10-25,"James, Per, Maria, Walid",0,Not Started,High,,False
+Validate Data Quality,Data Preparation,2026-10-20,2026-10-27,"Akanksha, Bona",0,Not Started,Medium,,False
+Exploratory Data Analysis,Analysis,2026-10-20,2026-10-30,"James, Per, Maria, Walid, Akanksha, Bona",0,Not Started,High,,False
+Define Evaluation Metrics,Analysis,2026-10-23,2026-10-30,"James, Walid, Akanksha",0,Not Started,Medium,,False
+Develop Baseline Analysis,Analysis,2026-10-28,2026-11-07,"James, Per, Walid",0,Not Started,High,,False
+Develop Advanced Analysis,Analysis,2026-11-03,2026-11-14,"James, Per, Maria, Walid, Akanksha, Bona",0,Not Started,High,,False
+Evaluate & Compare Results,Analysis,2026-11-10,2026-11-20,"James, Per, Maria, Walid, Akanksha, Bona",0,Not Started,High,,False
+Design Visualization,Visualization,2026-10-28,2026-11-07,"Maria, Bona, Akanksha",0,Not Started,Medium,,False
+Develop Interactive Visualization,Visualization,2026-11-03,2026-11-20,"Maria, Bona, Walid",0,Not Started,High,,False
+Integrate Analysis & Visualization,Visualization,2026-11-14,2026-11-24,"James, Maria, Walid",0,Not Started,High,,False
+Prepare Progress Report,Progress Checkpoint,2026-11-01,2026-11-12,"James, Per, Maria, Walid, Akanksha, Bona",0,Not Started,High,,True
+Run Final Experiments,Final Analysis,2026-11-15,2026-11-25,"James, Per, Maria, Walid, Akanksha, Bona",0,Not Started,High,,False
+Analyze Final Results,Final Analysis,2026-11-20,2026-11-28,"James, Per, Maria, Walid, Akanksha, Bona",0,Not Started,High,,False
+Prepare Final Poster,Final Deliverables,2026-11-20,2026-12-01,"Maria, Bona, Akanksha, James",0,Not Started,Medium,,True
+Prepare Presentation,Final Deliverables,2026-11-25,2026-12-03,"James, Per, Maria, Walid, Akanksha, Bona",0,Not Started,Medium,,True
+Write Final Report,Final Deliverables,2026-11-20,2026-12-05,"James, Per, Maria, Walid, Akanksha, Bona",0,Not Started,High,,True
+Final Review & Submission,Final Deliverables,2026-12-03,2026-12-06,"James, Per, Maria, Walid, Akanksha, Bona",0,Not Started,High,,True
