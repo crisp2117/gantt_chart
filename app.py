@@ -1,28 +1,11 @@
-# ============================================================
-# CSE6242 PROJECT GANTT DASHBOARD
-# app.py
-# ============================================================
-
 from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
 
-from data import (
-    google_sheet_url,
-    load_schedule_from_csv,
-    load_schedule_from_google_sheet,
-)
+from data import google_sheet_url, load_schedule_from_csv, load_schedule_from_google_sheet
+from gantt import create_gantt, create_high_level_gantt
 
-from gantt import (
-    create_gantt,
-    create_high_level_gantt,
-)
-
-
-# ============================================================
-# PAGE CONFIGURATION
-# ============================================================
 
 st.set_page_config(
     page_title="Project Gantt Dashboard",
@@ -31,813 +14,281 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-
-# ============================================================
-# CUSTOM STYLING
-# ============================================================
-
 st.markdown(
     """
     <style>
-
     .block-container {
-        padding-top: 1.5rem;
-        padding-bottom: 3rem;
+        padding-top: 1.25rem;
+        padding-bottom: 2.5rem;
     }
 
     h1 {
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.15rem;
     }
 
-    .schedule-source {
-        font-size: 0.90rem;
-        color: #666666;
+    [data-testid="stSidebar"] .stSelectbox {
+        margin-bottom: 0.4rem;
     }
 
+    [data-testid="stMetricValue"] {
+        font-size: 1.55rem;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 
-# ============================================================
-# LOAD PROJECT SCHEDULE
-# ============================================================
-
 @st.cache_data(ttl=30)
 def load_schedule():
-    """
-    Try to load the live published Google Sheet.
-
-    If the Google Sheet cannot be reached,
-    fall back to sample_tasks.csv.
-    """
-
+    """Load the published Google Sheet, falling back to local sample data."""
     try:
-
         df = load_schedule_from_google_sheet()
-
-        data_source = "Live Google Sheet"
-
-        error_message = None
-
+        return df, "Live Google Sheet", None
     except Exception as exc:
-
-        df = load_schedule_from_csv(
-            "sample_tasks.csv"
-        )
-
-        data_source = "Local fallback"
-
-        error_message = str(exc)
-
-    return (
-        df,
-        data_source,
-        error_message,
-    )
+        df = load_schedule_from_csv("sample_tasks.csv")
+        return df, "Local fallback", str(exc)
 
 
-# ============================================================
-# REFRESH SCHEDULE
-# ============================================================
-
-def refresh_schedule():
-
+def refresh_schedule() -> None:
     st.cache_data.clear()
-
     st.rerun()
 
 
-# ============================================================
-# LOAD DATA
-# ============================================================
+def apply_filters(
+    data: pd.DataFrame,
+    section: str,
+    status: str,
+    member: str,
+) -> pd.DataFrame:
+    filtered = data.copy()
 
-df, data_source, data_error = (
-    load_schedule()
-)
+    if section != "All sections":
+        filtered = filtered[filtered["Section"] == section].copy()
+
+    if status != "All statuses":
+        filtered = filtered[filtered["Status"] == status].copy()
+
+    if member != "All team members":
+        filtered = filtered[
+            filtered["Owners"].apply(lambda owners: member in owners)
+        ].copy()
+
+    return filtered
 
 
-# ============================================================
-# BASIC VALIDATION
-# ============================================================
+df, data_source, data_error = load_schedule()
 
 if df.empty:
-
-    st.error(
-        "No project schedule data was found."
-    )
-
+    st.error("No project schedule data was found.")
     st.stop()
 
-
-# ============================================================
-# DERIVED VALUES
-# ============================================================
-
-all_members = sorted(
-    {
-        owner
-        for owners in df["Owners"]
-        for owner in owners
-    }
-)
-
-
-all_sections = (
-    df["Section"]
-    .dropna()
-    .astype(str)
-    .unique()
-    .tolist()
-)
-
-
-all_statuses = (
+all_members = sorted({owner for owners in df["Owners"] for owner in owners})
+all_sections = sorted(df["Section"].dropna().astype(str).unique().tolist())
+all_statuses = sorted(
     df["Status"]
     .dropna()
     .astype(str)
-    .loc[
-        lambda x:
-        x.str.strip() != ""
-    ]
+    .loc[lambda s: s.str.strip() != ""]
     .unique()
     .tolist()
 )
 
+project_start = df["Start"].min()
+project_finish = df["Finish"].max()
+total_tasks = len(df)
+completed_tasks = int((df["PercentComplete"] >= 100).sum())
+average_completion = float(df["PercentComplete"].mean())
 
-project_start = (
-    df["Start"]
-    .min()
-)
-
-
-project_finish = (
-    df["Finish"]
-    .max()
-)
-
-
-total_tasks = len(
-    df
-)
-
-
-completed_tasks = int(
-    (
-        df["PercentComplete"]
-        >= 100
-    )
-    .sum()
-)
-
-
-average_completion = float(
-    df["PercentComplete"]
-    .mean()
-)
-
-
-# ============================================================
-# PAGE HEADER
-# ============================================================
-
-st.title(
-    "Project Gantt Dashboard"
-)
-
-st.caption(
-    "Interactive project schedule and team planning dashboard"
-)
-
-
-# ============================================================
-# SIDEBAR
-# ============================================================
+st.title("Project Gantt Dashboard")
+st.caption("Interactive project schedule and team planning dashboard")
 
 with st.sidebar:
+    st.header("Schedule controls")
+    st.caption(f"Data source: {data_source}")
 
-    st.header(
-        "Schedule controls"
-    )
+    if data_source == "Local fallback" and data_error:
+        with st.expander("Why is fallback data being used?"):
+            st.code(data_error)
 
-    # --------------------------------------------------------
-    # DATA SOURCE
-    # --------------------------------------------------------
-
-    st.markdown(
-        f"**Data source:** {data_source}"
-    )
-
-    if (
-        data_source
-        == "Local fallback"
-        and data_error
-    ):
-
-        with st.expander(
-            "Why is fallback data being used?"
-        ):
-
-            st.code(
-                data_error
-            )
-
-
-    # --------------------------------------------------------
-    # REFRESH
-    # --------------------------------------------------------
-
-    if st.button(
-        "Refresh schedule",
-        use_container_width=True,
-        type="primary",
-    ):
-
-        refresh_schedule()
-
-
-    # --------------------------------------------------------
-    # GOOGLE SHEET LINK
-    # --------------------------------------------------------
-
-    st.link_button(
-        "Open Google Sheet",
-        google_sheet_url(),
-        use_container_width=True,
-    )
-
+    refresh_col, sheet_col = st.columns(2)
+    with refresh_col:
+        if st.button("Refresh", use_container_width=True, type="primary"):
+            refresh_schedule()
+    with sheet_col:
+        st.link_button("Sheet", google_sheet_url(), use_container_width=True)
 
     st.divider()
+    st.subheader("Filters")
 
-
-    # ========================================================
-    # FILTERS
-    # ========================================================
-
-    st.subheader(
-        "Filters"
+    # Compact dropdowns instead of Streamlit multiselect chips/bubbles.
+    selected_section = st.selectbox(
+        "Work section",
+        options=["All sections"] + all_sections,
+        index=0,
     )
 
-
-    selected_sections = (
-        st.multiselect(
-            "Work section",
-            options=all_sections,
-            default=all_sections,
-        )
+    selected_status = st.selectbox(
+        "Status",
+        options=["All statuses"] + all_statuses,
+        index=0,
     )
 
-
-    if all_statuses:
-
-        selected_statuses = (
-            st.multiselect(
-                "Status",
-                options=all_statuses,
-                default=all_statuses,
-            )
-        )
-
-    else:
-
-        selected_statuses = []
-
-
-    selected_member = (
-        st.selectbox(
-            "Team member",
-            options=[
-                "All Team Members"
-            ]
-            + all_members,
-        )
+    selected_member = st.selectbox(
+        "Team member",
+        options=["All team members"] + all_members,
+        index=0,
     )
 
+    if st.button("Reset filters", use_container_width=True):
+        st.session_state.clear()
+        st.rerun()
 
     st.divider()
-
-
-    # ========================================================
-    # PROJECT SUMMARY
-    # ========================================================
-
-    st.subheader(
-        "Project summary"
-    )
-
-    st.metric(
-        "Tasks",
-        total_tasks,
-    )
-
-    st.metric(
-        "Completed",
-        completed_tasks,
-    )
-
-    st.metric(
-        "Average completion",
-        f"{average_completion:.0f}%",
-    )
+    st.subheader("Project summary")
+    st.metric("Tasks", total_tasks)
+    st.metric("Completed", completed_tasks)
+    st.metric("Average completion", f"{average_completion:.0f}%")
 
     if pd.notna(project_start):
-
-        st.caption(
-            "Start: "
-            + project_start.strftime(
-                "%b %d, %Y"
-            )
-        )
-
+        st.caption(f"Start: {project_start.strftime('%b %d, %Y')}")
     if pd.notna(project_finish):
+        st.caption(f"Finish: {project_finish.strftime('%b %d, %Y')}")
 
-        st.caption(
-            "Finish: "
-            + project_finish.strftime(
-                "%b %d, %Y"
-            )
-        )
-
-
-# ============================================================
-# APPLY FILTERS
-# ============================================================
-
-filtered_df = df.copy()
-
-
-# ------------------------------------------------------------
-# SECTION FILTER
-# ------------------------------------------------------------
-
-if selected_sections:
-
-    filtered_df = (
-        filtered_df[
-            filtered_df["Section"]
-            .isin(
-                selected_sections
-            )
-        ]
-        .copy()
-    )
-
-else:
-
-    filtered_df = (
-        filtered_df.iloc[0:0]
-        .copy()
-    )
-
-
-# ------------------------------------------------------------
-# STATUS FILTER
-# ------------------------------------------------------------
-
-if (
-    all_statuses
-    and selected_statuses
-):
-
-    filtered_df = (
-        filtered_df[
-            filtered_df["Status"]
-            .isin(
-                selected_statuses
-            )
-        ]
-        .copy()
-    )
-
-
-# ------------------------------------------------------------
-# MEMBER FILTER
-# ------------------------------------------------------------
-
-if (
-    selected_member
-    != "All Team Members"
-):
-
-    filtered_df = (
-        filtered_df[
-            filtered_df["Owners"]
-            .apply(
-                lambda owners:
-                selected_member
-                in owners
-            )
-        ]
-        .copy()
-    )
-
-
-# ============================================================
-# TABS
-# ============================================================
-
-(
-    overview_tab,
-    detailed_tab,
-    team_tab,
-    table_tab,
-) = st.tabs(
-    [
-        "Overview",
-        "Detailed Schedule",
-        "Team View",
-        "Task Table",
-    ]
+filtered_df = apply_filters(
+    df,
+    selected_section,
+    selected_status,
+    selected_member,
 )
 
-
-# ============================================================
-# OVERVIEW TAB
-# ============================================================
+overview_tab, detailed_tab, team_tab, table_tab = st.tabs(
+    ["Overview", "Detailed Schedule", "Team View", "Task Table"]
+)
 
 with overview_tab:
-
-    st.subheader(
-        "High-Level Project Schedule"
-    )
-
-    st.caption(
-        "Major project phases rolled up from the detailed project schedule."
-    )
-
+    st.subheader("High-Level Project Schedule")
+    st.caption("Major project phases rolled up from the detailed schedule.")
 
     if filtered_df.empty:
-
-        st.info(
-            "No tasks match the current filters."
-        )
-
+        st.info("No tasks match the current filters.")
     else:
-
-        overview_fig = (
-            create_high_level_gantt(
-                filtered_df
-            )
-        )
-
+        overview_fig = create_high_level_gantt(filtered_df)
         st.plotly_chart(
             overview_fig,
             use_container_width=True,
             config={
                 "displaylogo": False,
                 "responsive": True,
+                "scrollZoom": False,
             },
         )
 
-
-    # --------------------------------------------------------
-    # PROJECT METRICS
-    # --------------------------------------------------------
-
-    metric_col1, metric_col2, metric_col3, metric_col4 = (
-        st.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
+    visible_completed = int((filtered_df["PercentComplete"] >= 100).sum())
+    visible_progress = (
+        float(filtered_df["PercentComplete"].mean()) if not filtered_df.empty else 0.0
+    )
+    active_tasks = int(
+        ((filtered_df["PercentComplete"] > 0) & (filtered_df["PercentComplete"] < 100)).sum()
     )
 
-
-    with metric_col1:
-
-        st.metric(
-            "Visible Tasks",
-            len(filtered_df),
-        )
-
-
-    with metric_col2:
-
-        visible_completed = int(
-            (
-                filtered_df[
-                    "PercentComplete"
-                ]
-                >= 100
-            )
-            .sum()
-        )
-
-        st.metric(
-            "Completed Tasks",
-            visible_completed,
-        )
-
-
-    with metric_col3:
-
-        if not filtered_df.empty:
-
-            visible_completion = float(
-                filtered_df[
-                    "PercentComplete"
-                ]
-                .mean()
-            )
-
-        else:
-
-            visible_completion = 0
-
-        st.metric(
-            "Average Progress",
-            f"{visible_completion:.0f}%",
-        )
-
-
-    with metric_col4:
-
-        active_tasks = int(
-            (
-                (
-                    filtered_df[
-                        "PercentComplete"
-                    ]
-                    > 0
-                )
-                &
-                (
-                    filtered_df[
-                        "PercentComplete"
-                    ]
-                    < 100
-                )
-            )
-            .sum()
-        )
-
-        st.metric(
-            "In Progress",
-            active_tasks,
-        )
-
-
-# ============================================================
-# DETAILED SCHEDULE TAB
-# ============================================================
+    c1.metric("Visible tasks", len(filtered_df))
+    c2.metric("Completed tasks", visible_completed)
+    c3.metric("Average progress", f"{visible_progress:.0f}%")
+    c4.metric("In progress", active_tasks)
 
 with detailed_tab:
-
-    st.subheader(
-        "Detailed Project Schedule"
-    )
-
-    st.caption(
-        "Full task-level schedule organized by project work section."
-    )
-
+    st.subheader("Detailed Project Schedule")
+    st.caption("Task-level schedule organized by work section.")
 
     if filtered_df.empty:
-
-        st.info(
-            "No tasks match the current filters."
-        )
-
+        st.info("No tasks match the current filters.")
     else:
-
-        detailed_fig = (
-            create_gantt(
-                filtered_df,
-                "Project Schedule",
-            )
-        )
-
+        detailed_fig = create_gantt(filtered_df, "Project Schedule")
         st.plotly_chart(
             detailed_fig,
             use_container_width=True,
             config={
                 "displaylogo": False,
                 "responsive": True,
+                "scrollZoom": False,
             },
         )
 
-
-# ============================================================
-# TEAM VIEW TAB
-# ============================================================
-
 with team_tab:
-
-    st.subheader(
-        "Individual Team Schedule"
-    )
-
+    st.subheader("Individual Team Schedule")
 
     if not all_members:
-
-        st.info(
-            "No team members were found "
-            "in the Owners column."
-        )
-
+        st.info("No team members were found in the Owners column.")
     else:
-
-        team_member = (
-            st.selectbox(
-                "Select team member",
-                options=all_members,
-                key="team_view_member",
-            )
+        team_member = st.selectbox(
+            "Select team member",
+            options=all_members,
+            key="team_view_member",
         )
 
-
-        member_df = (
-            df[
-                df["Owners"]
-                .apply(
-                    lambda owners:
-                    team_member
-                    in owners
-                )
-            ]
-            .copy()
-        )
-
+        member_df = df[
+            df["Owners"].apply(lambda owners: team_member in owners)
+        ].copy()
 
         if member_df.empty:
-
-            st.info(
-                f"No tasks are currently "
-                f"assigned to {team_member}."
-            )
-
+            st.info(f"No tasks are currently assigned to {team_member}.")
         else:
+            m1, m2, m3 = st.columns(3)
+            member_completed = int((member_df["PercentComplete"] >= 100).sum())
+            member_progress = float(member_df["PercentComplete"].mean())
 
-            # ------------------------------------------------
-            # MEMBER METRICS
-            # ------------------------------------------------
+            m1.metric("Assigned tasks", len(member_df))
+            m2.metric("Completed", member_completed)
+            m3.metric("Average progress", f"{member_progress:.0f}%")
 
-            member_col1, member_col2, member_col3 = (
-                st.columns(3)
+            member_fig = create_gantt(
+                member_df,
+                f"{team_member} — Individual Project Schedule",
             )
-
-
-            with member_col1:
-
-                st.metric(
-                    "Assigned Tasks",
-                    len(member_df),
-                )
-
-
-            with member_col2:
-
-                member_completed = int(
-                    (
-                        member_df[
-                            "PercentComplete"
-                        ]
-                        >= 100
-                    )
-                    .sum()
-                )
-
-                st.metric(
-                    "Completed",
-                    member_completed,
-                )
-
-
-            with member_col3:
-
-                member_progress = float(
-                    member_df[
-                        "PercentComplete"
-                    ]
-                    .mean()
-                )
-
-                st.metric(
-                    "Average Progress",
-                    f"{member_progress:.0f}%",
-                )
-
-
-            # ------------------------------------------------
-            # MEMBER GANTT
-            # ------------------------------------------------
-
-            member_fig = (
-                create_gantt(
-                    member_df,
-                    (
-                        f"{team_member} — "
-                        f"Individual Project Schedule"
-                    ),
-                )
-            )
-
             st.plotly_chart(
                 member_fig,
                 use_container_width=True,
                 config={
                     "displaylogo": False,
                     "responsive": True,
+                    "scrollZoom": False,
                 },
             )
 
-
-# ============================================================
-# TASK TABLE TAB
-# ============================================================
-
 with table_tab:
+    st.subheader("Project Task Table")
+    st.caption("Underlying schedule data from the shared Google Sheet.")
 
-    st.subheader(
-        "Project Task Table"
-    )
-
-    st.caption(
-        "Underlying schedule data from the shared Google Sheet."
-    )
-
-
-    # --------------------------------------------------------
-    # PREPARE TABLE FOR DISPLAY
-    # --------------------------------------------------------
-
-    display_df = (
-        filtered_df.copy()
-    )
-
-
-    if not display_df.empty:
-
-        display_df["Owners"] = (
-            display_df["Owners"]
-            .apply(
-                lambda owners:
-                ", ".join(
-                    owners
-                )
-            )
+    if filtered_df.empty:
+        st.info("No tasks match the current filters.")
+    else:
+        display_df = filtered_df.copy()
+        display_df["Owners"] = display_df["Owners"].apply(", ".join)
+        display_df["Start"] = display_df["Start"].dt.strftime("%Y-%m-%d")
+        display_df["Finish"] = display_df["Finish"].dt.strftime("%Y-%m-%d")
+        display_df["PercentComplete"] = (
+            display_df["PercentComplete"].round().astype(int)
         )
-
-
-        display_df["Start"] = (
-            display_df["Start"]
-            .dt.strftime(
-                "%Y-%m-%d"
-            )
-        )
-
-
-        display_df["Finish"] = (
-            display_df["Finish"]
-            .dt.strftime(
-                "%Y-%m-%d"
-            )
-        )
-
-
-        display_df[
-            "PercentComplete"
-        ] = (
-            display_df[
-                "PercentComplete"
-            ]
-            .round()
-            .astype(int)
-        )
-
 
         st.dataframe(
             display_df,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "PercentComplete":
-                    st.column_config.ProgressColumn(
-                        "Percent Complete",
-                        min_value=0,
-                        max_value=100,
-                        format="%d%%",
-                    ),
-
-                "Milestone":
-                    st.column_config.CheckboxColumn(
-                        "Milestone"
-                    ),
+                "PercentComplete": st.column_config.ProgressColumn(
+                    "Percent complete",
+                    min_value=0,
+                    max_value=100,
+                    format="%d%%",
+                ),
+                "Milestone": st.column_config.CheckboxColumn("Milestone"),
             },
         )
 
-
-    else:
-
-        st.info(
-            "No tasks match the current filters."
-        )
-
-
-# ============================================================
-# FOOTER
-# ============================================================
-
 st.divider()
-
 st.caption(
     "Schedule updates are maintained in the shared Google Sheet. "
-    "Use Refresh Schedule to retrieve the latest published data."
+    "Use Refresh to retrieve the latest published data."
 )
